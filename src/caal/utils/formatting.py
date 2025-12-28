@@ -31,6 +31,9 @@ def strip_markdown_for_tts(text: str) -> str:
     text = re.sub(r'(?<!\w)\*(?!\w)', '', text)  # standalone *
     text = re.sub(r'(?<!\w)_(?!\w)', '', text)   # standalone _
 
+    # Convert score patterns (30-23) to "30 to 23" so TTS doesn't say "minus"
+    text = re.sub(r'(\d+)-(\d+)', r'\1 to \2', text)
+
     return text
 
 
