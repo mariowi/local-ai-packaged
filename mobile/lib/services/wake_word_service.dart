@@ -10,6 +10,7 @@ class WakeWordService extends ChangeNotifier {
   final VoidCallback onWakeWordDetected;
   final String serverUrl;
   final String porcupineAccessKey;
+  final String? customWakeWordPath;
   bool _isEnabled = false;
   bool _isReady = false;
 
@@ -23,6 +24,7 @@ class WakeWordService extends ChangeNotifier {
     required this.onWakeWordDetected,
     required this.serverUrl,
     required this.porcupineAccessKey,
+    this.customWakeWordPath,
   });
 
   /// Calls the backend /api/wake endpoint to trigger a greeting.
@@ -55,9 +57,14 @@ class WakeWordService extends ChangeNotifier {
     }
 
     try {
+      // Use custom path if set, otherwise fall back to bundled asset
+      final wakeWordPath = (customWakeWordPath?.isNotEmpty == true)
+          ? customWakeWordPath!
+          : 'assets/wakeword.ppn';
+
       _porcupineManager = await PorcupineManager.fromKeywordPaths(
         porcupineAccessKey,
-        ['assets/wakeword.ppn'],
+        [wakeWordPath],
         _onWakeWordCallback,
         errorCallback: _onError,
       );

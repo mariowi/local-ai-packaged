@@ -290,6 +290,10 @@ class _WakeWordButtonState extends State<_WakeWordButton> {
           });
         }
 
+        // Check if wake word is configured (has access key)
+        final appCtrl = context.read<AppCtrl>();
+        final isConfigured = appCtrl.porcupineAccessKey.isNotEmpty;
+
         return ListenableBuilder(
           listenable: wakeWord,
           builder: (context, _) {
@@ -299,20 +303,22 @@ class _WakeWordButtonState extends State<_WakeWordButton> {
               fit: FlexFit.tight,
               child: FloatingGlassButton(
                 isActive: isEnabled,
-                iconColor: isEnabled ? _wakeWordBlue : null,
+                iconColor: isEnabled ? _wakeWordBlue : (isConfigured ? null : Colors.grey),
                 sfIcon: sf.SFIcons.sf_ear_fill,
-                onTap: () async {
-                  final enabled = await wakeWord.toggle();
-                  if (enabled) {
-                    // When wake word enabled, mute mic
-                    mediaDeviceCtx.disableMicrophone();
-                  } else {
-                    // When disabled, cancel any pending auto-mute
-                    _autoMuteTimer?.cancel();
-                    _hasUserSpoken = false;
-                    _wasAgentActive = false;
-                  }
-                },
+                onTap: isConfigured
+                    ? () async {
+                        final enabled = await wakeWord.toggle();
+                        if (enabled) {
+                          // When wake word enabled, mute mic
+                          mediaDeviceCtx.disableMicrophone();
+                        } else {
+                          // When disabled, cancel any pending auto-mute
+                          _autoMuteTimer?.cancel();
+                          _hasUserSpoken = false;
+                          _wasAgentActive = false;
+                        }
+                      }
+                    : null,
               ),
             );
           },

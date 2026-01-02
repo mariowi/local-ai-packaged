@@ -23,6 +23,7 @@ class WelcomeScreen extends StatelessWidget {
             appCtrl.updateConfig(
               serverUrl: configService.serverUrl,
               porcupineAccessKey: configService.porcupineAccessKey,
+              wakeWordPath: configService.wakeWordPath,
             );
           },
         ),

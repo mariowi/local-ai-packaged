@@ -21,9 +21,11 @@ class AppCtrl extends ChangeNotifier {
   // Configuration (mutable to allow updates from settings)
   String _serverUrl;
   String _porcupineAccessKey;
+  String _wakeWordPath;
 
   String get serverUrl => _serverUrl;
   String get porcupineAccessKey => _porcupineAccessKey;
+  String get wakeWordPath => _wakeWordPath;
 
   // States
   AppScreenState appScreenState = AppScreenState.welcome;
@@ -113,8 +115,10 @@ class AppCtrl extends ChangeNotifier {
   AppCtrl({
     required String serverUrl,
     String porcupineAccessKey = '',
+    String wakeWordPath = '',
   })  : _serverUrl = serverUrl,
-        _porcupineAccessKey = porcupineAccessKey {
+        _porcupineAccessKey = porcupineAccessKey,
+        _wakeWordPath = wakeWordPath {
     final format = DateFormat('HH:mm:ss');
     Logger.root.level = Level.FINE;
     Logger.root.onRecord.listen((record) {
@@ -136,28 +140,37 @@ class AppCtrl extends ChangeNotifier {
       onWakeWordDetected: _onWakeWordDetected,
       serverUrl: serverUrl,
       porcupineAccessKey: porcupineAccessKey,
+      customWakeWordPath: wakeWordPath,
     );
   }
 
   /// Update config and recreate wake word service with new values.
   /// Called when user changes settings.
-  void updateConfig({required String serverUrl, required String porcupineAccessKey}) {
+  void updateConfig({
+    required String serverUrl,
+    required String porcupineAccessKey,
+    required String wakeWordPath,
+  }) {
     // Only recreate if values actually changed
-    if (serverUrl == _serverUrl && porcupineAccessKey == _porcupineAccessKey) {
+    if (serverUrl == _serverUrl &&
+        porcupineAccessKey == _porcupineAccessKey &&
+        wakeWordPath == _wakeWordPath) {
       return;
     }
 
-    _logger.info('Updating config - serverUrl: $serverUrl, porcupineKey: ${porcupineAccessKey.isNotEmpty ? "(set)" : "(empty)"}');
+    _logger.info('Updating config - serverUrl: $serverUrl, porcupineKey: ${porcupineAccessKey.isNotEmpty ? "(set)" : "(empty)"}, wakeWordPath: ${wakeWordPath.isNotEmpty ? wakeWordPath : "(default)"}');
 
     _serverUrl = serverUrl;
     _porcupineAccessKey = porcupineAccessKey;
+    _wakeWordPath = wakeWordPath;
 
-    // Recreate wake word service with new key
+    // Recreate wake word service with new key/path
     wakeWordService.dispose();
     wakeWordService = WakeWordService(
       onWakeWordDetected: _onWakeWordDetected,
       serverUrl: serverUrl,
       porcupineAccessKey: porcupineAccessKey,
+      customWakeWordPath: wakeWordPath,
     );
 
     notifyListeners();

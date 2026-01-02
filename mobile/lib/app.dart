@@ -36,6 +36,7 @@ class _CaalAppState extends State<CaalApp> {
       _appCtrl = AppCtrl(
         serverUrl: widget.configService.serverUrl,
         porcupineAccessKey: widget.configService.porcupineAccessKey,
+        wakeWordPath: widget.configService.wakeWordPath,
       );
     }
   }
@@ -45,6 +46,7 @@ class _CaalAppState extends State<CaalApp> {
       _appCtrl = AppCtrl(
         serverUrl: widget.configService.serverUrl,
         porcupineAccessKey: widget.configService.porcupineAccessKey,
+        wakeWordPath: widget.configService.wakeWordPath,
       );
     });
   }

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ConfigService extends ChangeNotifier {
   static const _keyServerUrl = 'caal_server_url';
   static const _keyPorcupineKey = 'porcupine_access_key';
+  static const _keyWakeWordPath = 'wake_word_ppn_path';
 
   SharedPreferences? _prefs;
 
@@ -26,6 +27,9 @@ class ConfigService extends ChangeNotifier {
   String get porcupineAccessKey =>
       (_prefs?.getString(_keyPorcupineKey) ?? '').replaceAll('"', '').replaceAll("'", '');
 
+  /// Path to the custom wake word .ppn file in app storage.
+  String get wakeWordPath => _prefs?.getString(_keyWakeWordPath) ?? '';
+
   /// Save the server URL.
   Future<void> setServerUrl(String url) async {
     await _prefs?.setString(_keyServerUrl, url.trim());
@@ -38,10 +42,17 @@ class ConfigService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Save the wake word file path.
+  Future<void> setWakeWordPath(String path) async {
+    await _prefs?.setString(_keyWakeWordPath, path.trim());
+    notifyListeners();
+  }
+
   /// Clear all configuration (for testing or reset).
   Future<void> clear() async {
     await _prefs?.remove(_keyServerUrl);
     await _prefs?.remove(_keyPorcupineKey);
+    await _prefs?.remove(_keyWakeWordPath);
     notifyListeners();
   }
 }
