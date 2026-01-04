@@ -53,12 +53,14 @@ class _SettingsModalState extends State<SettingsModal> {
   int _maxTurns = 20;
   int _toolCacheSize = 3;
   bool _wakeWordEnabled = false;
+  String _wakeWordModel = 'models/hey_cal.onnx';
   double _wakeWordThreshold = 0.5;
   double _wakeWordTimeout = 3.0;
 
   // Available options
   List<String> _voices = [];
   List<String> _models = [];
+  List<String> _wakeWordModels = [];
 
   // Text controllers
   final _wakeGreetingsController = TextEditingController();
@@ -92,11 +94,13 @@ class _SettingsModalState extends State<SettingsModal> {
         http.get(Uri.parse('$_webhookUrl/settings')),
         http.get(Uri.parse('$_webhookUrl/voices')),
         http.get(Uri.parse('$_webhookUrl/models')),
+        http.get(Uri.parse('$_webhookUrl/wake-word/models')),
       ]);
 
       final settingsRes = results[0];
       final voicesRes = results[1];
       final modelsRes = results[2];
+      final wakeWordModelsRes = results[3];
 
       if (settingsRes.statusCode == 200) {
         final data = jsonDecode(settingsRes.body);
@@ -112,6 +116,7 @@ class _SettingsModalState extends State<SettingsModal> {
           _maxTurns = settings['max_turns'] ?? _maxTurns;
           _toolCacheSize = settings['tool_cache_size'] ?? _toolCacheSize;
           _wakeWordEnabled = settings['wake_word_enabled'] ?? _wakeWordEnabled;
+          _wakeWordModel = settings['wake_word_model'] ?? _wakeWordModel;
           _wakeWordThreshold = (settings['wake_word_threshold'] ?? _wakeWordThreshold).toDouble();
           _wakeWordTimeout = (settings['wake_word_timeout'] ?? _wakeWordTimeout).toDouble();
           _wakeGreetingsController.text = _wakeGreetings.join('\n');
@@ -129,6 +134,13 @@ class _SettingsModalState extends State<SettingsModal> {
         final data = jsonDecode(modelsRes.body);
         setState(() {
           _models = List<String>.from(data['models'] ?? []);
+        });
+      }
+
+      if (wakeWordModelsRes.statusCode == 200) {
+        final data = jsonDecode(wakeWordModelsRes.body);
+        setState(() {
+          _wakeWordModels = List<String>.from(data['models'] ?? []);
         });
       }
     } catch (e) {
@@ -163,6 +175,7 @@ class _SettingsModalState extends State<SettingsModal> {
         'max_turns': _maxTurns,
         'tool_cache_size': _toolCacheSize,
         'wake_word_enabled': _wakeWordEnabled,
+        'wake_word_model': _wakeWordModel,
         'wake_word_threshold': _wakeWordThreshold,
         'wake_word_timeout': _wakeWordTimeout,
       };
@@ -370,7 +383,7 @@ class _SettingsModalState extends State<SettingsModal> {
                                     ),
                                   ),
                                   Text(
-                                    'Say "Hey Jarvis" to activate',
+                                    'Activate with wake phrase',
                                     style: TextStyle(
                                       color: Colors.white54,
                                       fontSize: 12,
@@ -387,6 +400,8 @@ class _SettingsModalState extends State<SettingsModal> {
                           ),
                           if (_wakeWordEnabled) ...[
                             const SizedBox(height: 12),
+                            // Wake Word Model Dropdown
+                            _buildWakeWordModelDropdown(),
                             Row(
                               children: [
                                 Expanded(
@@ -597,6 +612,47 @@ class _SettingsModalState extends State<SettingsModal> {
           },
         ),
         const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  /// Format model path for display: "models/hey_cal.onnx" -> "Hey Cal"
+  String _formatModelName(String path) {
+    return path
+        .replaceAll('models/', '')
+        .replaceAll('.onnx', '')
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+  }
+
+  Widget _buildWakeWordModelDropdown() {
+    final options = _wakeWordModels.isNotEmpty ? _wakeWordModels : [_wakeWordModel];
+    final safeValue = options.contains(_wakeWordModel) ? _wakeWordModel : options.first;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Wake Word Model',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: safeValue,
+          style: const TextStyle(color: Colors.white),
+          dropdownColor: const Color(0xFF2A2A2A),
+          decoration: _inputDecoration(),
+          items: options
+              .map((m) => DropdownMenuItem(
+                    value: m,
+                    child: Text(_formatModelName(m)),
+                  ))
+              .toList(),
+          onChanged: (v) => setState(() => _wakeWordModel = v ?? _wakeWordModel),
+        ),
+        const SizedBox(height: 12),
       ],
     );
   }

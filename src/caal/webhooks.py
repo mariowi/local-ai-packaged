@@ -17,6 +17,7 @@ Endpoints:
     GET  /wake-word/status   - Get wake word detection status
     POST /wake-word/enable   - Enable server-side wake word detection
     POST /wake-word/disable  - Disable server-side wake word detection
+    GET  /wake-word/models   - List available wake word models
 
 Usage:
     # Start in a background thread from voice_agent.py:
@@ -565,3 +566,33 @@ async def disable_wake_word() -> WakeWordStatusResponse:
         threshold=settings.get("wake_word_threshold", 0.5),
         timeout=settings.get("wake_word_timeout", 3.0),
     )
+
+
+class WakeWordModelsResponse(BaseModel):
+    """Response containing available wake word models."""
+
+    models: list[str]
+
+
+@app.get("/wake-word/models", response_model=WakeWordModelsResponse)
+async def get_wake_word_models() -> WakeWordModelsResponse:
+    """List available wake word models.
+
+    Scans the models/ directory for .onnx files, excluding infrastructure
+    models (embedding_model, melspectrogram).
+
+    Returns:
+        WakeWordModelsResponse with list of model paths
+    """
+    from pathlib import Path
+
+    models_dir = Path("models")
+    models = []
+
+    if models_dir.exists():
+        for f in models_dir.glob("*.onnx"):
+            # Skip infrastructure models used by OpenWakeWord
+            if f.name not in ("embedding_model.onnx", "melspectrogram.onnx"):
+                models.append(f"models/{f.name}")
+
+    return WakeWordModelsResponse(models=sorted(models))

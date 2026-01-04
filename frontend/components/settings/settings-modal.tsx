@@ -16,6 +16,7 @@ interface Settings {
   max_turns: number;
   tool_cache_size: number;
   wake_word_enabled: boolean;
+  wake_word_model: string;
   wake_word_threshold: number;
   wake_word_timeout: number;
 }
@@ -36,6 +37,7 @@ const DEFAULT_SETTINGS: Settings = {
   max_turns: 20,
   tool_cache_size: 3,
   wake_word_enabled: false,
+  wake_word_model: 'models/hey_cal.onnx',
   wake_word_threshold: 0.5,
   wake_word_timeout: 3.0,
 };
@@ -56,6 +58,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [, setCustomPromptExists] = useState(false);
   const [voices, setVoices] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
+  const [wakeWordModels, setWakeWordModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +69,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setError(null);
 
     try {
-      const [settingsRes, voicesRes, modelsRes] = await Promise.all([
+      const [settingsRes, voicesRes, modelsRes, wakeWordModelsRes] = await Promise.all([
         fetch('/api/settings'),
         fetch('/api/voices'),
         fetch('/api/models'),
+        fetch('/api/wake-word/models'),
       ]);
 
       if (settingsRes.ok) {
@@ -91,6 +95,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelsRes.ok) {
         const data = await modelsRes.json();
         setModels(data.models || []);
+      }
+
+      if (wakeWordModelsRes.ok) {
+        const data = await wakeWordModelsRes.json();
+        setWakeWordModels(data.models || []);
       }
     } catch (err) {
       console.error('Error loading settings:', err);
@@ -359,7 +368,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div>
                     <label className="text-sm font-medium">Server-Side Wake Word</label>
                     <p className="text-muted-foreground text-xs">
-                      Say &quot;Hey Jarvis&quot; to activate (requires restart)
+                      Activate with wake phrase (requires restart)
                     </p>
                   </div>
                   <button
@@ -382,42 +391,76 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 {settings.wake_word_enabled && (
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="space-y-1">
-                      <label className="text-muted-foreground text-xs">Detection Threshold</label>
-                      <input
-                        type="number"
-                        min="0.1"
-                        max="1.0"
-                        step="0.1"
-                        value={settings.wake_word_threshold}
+                  <>
+                    {/* Wake Word Model Selector */}
+                    <div className="space-y-1 pt-2">
+                      <label className="text-muted-foreground text-xs">Wake Word Model</label>
+                      <select
+                        value={settings.wake_word_model}
                         onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            wake_word_threshold: parseFloat(e.target.value) || 0.5,
-                          })
+                          setSettings({ ...settings, wake_word_model: e.target.value })
                         }
                         className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                      />
+                      >
+                        {wakeWordModels.length > 0 ? (
+                          wakeWordModels.map((model) => (
+                            <option key={model} value={model}>
+                              {model
+                                .replace('models/', '')
+                                .replace('.onnx', '')
+                                .replace(/_/g, ' ')
+                                .replace(/\b\w/g, (c) => c.toUpperCase())}
+                            </option>
+                          ))
+                        ) : (
+                          <option value={settings.wake_word_model}>
+                            {settings.wake_word_model
+                              .replace('models/', '')
+                              .replace('.onnx', '')
+                              .replace(/_/g, ' ')
+                              .replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </option>
+                        )}
+                      </select>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-muted-foreground text-xs">Silence Timeout (s)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        step="0.5"
-                        value={settings.wake_word_timeout}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            wake_word_timeout: parseFloat(e.target.value) || 3.0,
-                          })
-                        }
-                        className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                      />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground text-xs">Detection Threshold</label>
+                        <input
+                          type="number"
+                          min="0.1"
+                          max="1.0"
+                          step="0.1"
+                          value={settings.wake_word_threshold}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              wake_word_threshold: parseFloat(e.target.value) || 0.5,
+                            })
+                          }
+                          className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground text-xs">Silence Timeout (s)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="30"
+                          step="0.5"
+                          value={settings.wake_word_timeout}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              wake_word_timeout: parseFloat(e.target.value) || 3.0,
+                            })
+                          }
+                          className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
 
