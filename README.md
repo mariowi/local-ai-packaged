@@ -22,7 +22,8 @@ n8n instance if you use this setup instead of the base one provided by n8n!
 
 ![n8n.io - Screenshot](https://raw.githubusercontent.com/n8n-io/self-hosted-ai-starter-kit/main/assets/n8n-demo.gif)
 
-Curated by <https://github.com/n8n-io> and <https://github.com/coleam00>, it combines the self-hosted n8n
+Forked from Cole Medin's [coleam00/local-ai-packaged](https://github.com/coleam00/local-ai-packaged) repository and heavy modified with modules from [theaiautomators/insights-lm-local-package](https://github.com/theaiautomators/insights-lm-local-package) and [CoreWorxLab/CAAL](https://github.com/CoreWorxLab/CAAL/tree/main)
+Curated by <https://github.com/mariowi>, it combines the self-hosted n8n
 platform with a curated list of compatible AI products and components to
 quickly get started with building self-hosted AI workflows.
 
@@ -56,21 +57,106 @@ results from up to 229 search services. Users are neither tracked nor profiled, 
 
 ✅ [**Langfuse**](https://langfuse.com/) - Open source LLM engineering platform for agent observability
 
+
+✅ [**Clickhouse**](https://clickhouse.com/) - Open source column-oriented DBMS for online analytical processingthat allows users to generate analytical reports using SQL queries in real-time.
+
+✅ [**Minio**](https://www.min.io/) - Open source high-performance, S3 compatible object store
+
+✅ [**PostgreSQL**](https://www.postgresql.org/) - Open source, powerful object-relational database system
+
+✅ [**Redis**](https://redis.io/) - is an in-memory key–value database
+
+✅ [**Docling**](https://www.docling.ai/) - OCR and document parsing service for extracting structured data from documents
+
+✅ [**LiveKit**](https://livekit.io/) - Open source project that provides scalable, multi-user conferencing based on WebRTC
+
+✅ [**Speaches**](https://speaches.ai/) - OpenAI API-compatible server supporting streaming transcription, translation, and speech generation
+
+✅ [**Kokoro-FastAPI**](https://github.com/remsky/Kokoro-FastAPI) - Dockerized FastAPI wrapper for Kokoro-82M text-to-speech model w/CPU ONNX and NVIDIA GPU PyTorch support, handling, and auto-stitching
+
+✅ [**Ollama-Proxy**](https://github.com/ParisNeo/ollama_proxy_server/tree/main) - Open source proxy server for multiple ollama instances with Key security 
+
+✅ [**InsightsLM**](https://www.theaiautomators.com/notebooklm-clone-that-you-can-sell/) - Open source, fully private and local alternative to NotebookLM. Chat with your documents, generate audio summaries, and ground AI in your own sources.
+
+✅ [**CAAL**](https://github.com/CoreWorxLab/CAAL/tree/main) - Local voice assistant that learns new abilities via auto-discovered n8n workflows exposed as tools via MCP 
+
 ## Prerequisites
 
 Before you begin, make sure you have the following software installed:
 
-- [Python](https://www.python.org/downloads/) - Required to run the setup script
-- [Git/GitHub Desktop](https://desktop.github.com/) - For easy repository management
-- [Docker/Docker Desktop](https://www.docker.com/products/docker-desktop/) - Required to run all services
+- [Python](https://www.python.org/downloads/)
+- [Git](https://git-scm.com/downloads/) or GitHub Desktop
+- [Docker](https://www.docker.com/products/docker-desktop/) or Docker Desktop
+- A code editor like [VS Code](https://code.visualstudio.com/) is highly recommended.
 
 ## Installation
 
-Clone the repository and navigate to the project directory:
-```bash
-git clone -b stable https://github.com/coleam00/local-ai-packaged.git
-cd local-ai-packaged
-```
+1.  **Clone the Base Local AI Package Repo**
+    * Open your terminal or VS Code and clone Cole Medin's [local-ai-packaged](https://github.com/coleam00/local-ai-packaged) repository. This forms the foundation of our local setup.
+    ```bash
+    git clone https://github.com/coleam00/local-ai-packaged.git
+    cd local-ai-packaged
+    ```
+
+3.  **Configure Environment Variables**
+    * In the root of the `local-ai-packaged` directory, make a copy of `.env.example` and rename it to `.env`.
+    * Populate the necessary secrets (n8n secrets, postgres password, etc.) as described in Cole's repo. You can use a password generator for secure keys.
+    * Generate the Supabase `JWT_SECRET`, `ANON_KEY`, and `SERVICE_ROLE_KEY` using the instructions in the documentation.
+
+4.  **Start the Services**
+    * Open up Docker Desktop
+    * Run the start script provided in Cole's repository. Use the command appropriate for your system (e.g., Nvidia GPU). This will download all the necessary Docker images and start the containers. This may take a while.
+    ```bash
+    # Example for Nvidia GPU
+    python start_services.py --profile gpu-nvidia
+    ```
+
+5.  **Import Supabase Script**
+    * Login to your Supabase instance (usually at `http://localhost:8000`)
+    * Go to SQL Editor
+    * Paste the contents of the file located in `insights-lm-local-package/supabase-migration.sql` into the SQL editor and click Run
+    * You should get a "Success. No rows returned" message
+
+6.  **Move Supabase Functions**
+    * Once the Docker images have downloaded and the service are up, navigate to the `insights-lm-local-package/supabase/functions/` directory.
+    * Copy all the function folders within it.
+    * Paste them into the `supabase/volumes/functions/` directory.
+
+7.  **Update Supabase Docker Configuration**
+    * Open the `supabase/docker/docker-compose.yml` file.
+    * Copy the environment variables listed in `insights-lm-local-package/supabase/docker-compose.yml.copy`.
+    * Paste these variables under the `functions` service in the `supabase/docker/docker-compose.yml` file. This gives the edge functions access to your N8N webhook URLs.
+
+8.  **Restart Docker Containers**
+    * Shut down all running services using the provided command.
+    ```bash
+    # Example for Nvidia GPU
+    docker compose -p localai -f docker-compose.yml --profile gpu-nvidia down
+    ```
+    * Restart the services using the `start_services.py` script again to apply all changes.
+
+9.  **Import and Configure N8N Workflows**
+    * Access N8N in your browser (usually at `http://localhost:5678`).
+    * Create a new workflow and import the `Import_Insights_LM_Workflows.json` file from the `insights-lm-local-package/n8n/` directory.
+    * Follow the steps in the video to configure the importer workflow.
+        * Create an N8N API Key and set the credential in the N8N node
+            * URL should be "http://localhost:5678/api/v1"
+        * Create credential for Webhook Header Auth and copy the credential ID into the "Enter User Values" node
+            * Name must be "Authorization" and value is what was set at the bottom of the ENV file 
+        * Create credential for Supabase API and copy the credential ID into the "Enter User Values" node
+            * Host should be "http://kong:8000"
+            * Service Role Secret is in your ENV file
+        * Create credential for Olama and copy the credential ID into the "Enter User Values" node 
+            * Base URL should be "http://ollama:11434"
+    * Run the importer workflow to automatically set up all the required InsightsLM workflows in your N8N instance.
+
+10. **Activate Workflows & Test**
+    * Go to your N8N dashboard, find the newly imported workflows, and activate them all (Except the "Extract Text" workflow).
+    * Access the InsightsLM frontend (usually at `http://localhost:3010`).
+    * Create a user in your local Supabase dashboard (under Authentication) to log in.
+    * You're all set! Start uploading documents and chatting with your private AI assistant.
+
+---
 
 Before running the services, you need to set up your environment variables for Supabase following their [self-hosting guide](https://supabase.com/docs/guides/self-hosting/docker#securing-your-services).
 
