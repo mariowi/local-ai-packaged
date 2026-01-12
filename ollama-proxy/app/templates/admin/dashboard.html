@@ -1,0 +1,251 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block header_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- System Status -->
+    <div class="card-style">
+        <h2 class="card-header text-2xl font-bold mb-4 pb-2">System Status</h2>
+        <div id="system-info-container" class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+            <!-- CPU -->
+            <div class="p-4 rounded-lg">
+                <h3 class="text-sm font-medium uppercase text-gray-400">CPU Usage</h3>
+                <div class="relative w-24 h-24 mx-auto mt-2">
+                    <svg class="w-full h-full" viewBox="0 0 36 36">
+                        <path class="text-gray-700/50" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
+                        <path id="cpu-progress" class="text-[var(--color-primary-500)]" stroke-width="3" fill="none" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-linecap="round"></path>
+                    </svg>
+                    <div id="cpu-percent" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xl font-bold">--%</div>
+                </div>
+            </div>
+            <!-- Memory -->
+            <div class="p-4 rounded-lg">
+                <h3 class="text-sm font-medium uppercase text-gray-400">Memory Usage</h3>
+                <div class="relative w-24 h-24 mx-auto mt-2">
+                     <svg class="w-full h-full" viewBox="0 0 36 36">
+                        <path class="text-gray-700/50" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
+                        <path id="mem-progress" class="text-[var(--color-primary-500)]" stroke-width="3" fill="none" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-linecap="round"></path>
+                    </svg>
+                    <div id="mem-percent" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xl font-bold">--%</div>
+                </div>
+                <div id="mem-details" class="text-xs text-gray-400 mt-2">-- / -- GB</div>
+            </div>
+            <!-- Disk -->
+            <div class="p-4 rounded-lg">
+                <h3 class="text-sm font-medium uppercase text-gray-400">Disk Usage (/)</h3>
+                 <div class="relative w-24 h-24 mx-auto mt-2">
+                     <svg class="w-full h-full" viewBox="0 0 36 36">
+                        <path class="text-gray-700/50" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
+                        <path id="disk-progress" class="text-[var(--color-primary-500)]" stroke-width="3" fill="none" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-linecap="round"></path>
+                    </svg>
+                    <div id="disk-percent" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xl font-bold">--%</div>
+                </div>
+                <div id="disk-details" class="text-xs text-gray-400 mt-2">-- / -- GB</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Models -->
+    <div class="card-style">
+        <h2 class="card-header text-2xl font-bold mb-4 pb-2">Active Models</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead>
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Model</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Server</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Placement</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Size</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Expires In</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="running-models-tbody" class="divide-y divide-white/10">
+                    <!-- Loading state -->
+                    <tr>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-400">
+                            <svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span class="mt-2 block">Loading active models...</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Load Balancer & Queue Status -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Load Balancer Status -->
+        <div class="card-style">
+            <h2 class="card-header text-2xl font-bold mb-4 pb-2">Load Balancer Status</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Server</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Total Requests</th>
+                        </tr>
+                    </thead>
+                    <tbody id="load-balancer-tbody" class="divide-y divide-white/10">
+                        <tr>
+                            <td colspan="3" class="px-6 py-10 text-center text-gray-400">Loading server status...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Rate Limit Queue Status -->
+        <div class="card-style">
+            <h2 class="card-header text-2xl font-bold mb-4 pb-2">Rate Limit Queue Status</h2>
+            <div class="overflow-y-auto max-h-96">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Key Prefix</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Usage</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Window Resets In</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rate-limit-tbody" class="divide-y divide-white/10">
+                        <tr>
+                            <td colspan="3" class="px-6 py-10 text-center text-gray-400">Loading rate limit data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const systemInfoUrl = "{{ url_for('admin_system_info') }}";
+
+    function updateSystemInfo(data) {
+        const sys = data.system_info;
+        document.getElementById('cpu-percent').textContent = `${sys.cpu.percent.toFixed(1)}%`;
+        document.getElementById('cpu-progress').style.strokeDasharray = `${sys.cpu.percent.toFixed(1)}, 100`;
+        document.getElementById('mem-percent').textContent = `${sys.memory.percent.toFixed(1)}%`;
+        document.getElementById('mem-progress').style.strokeDasharray = `${sys.memory.percent.toFixed(1)}, 100`;
+        document.getElementById('mem-details').textContent = `${sys.memory.used_gb} / ${sys.memory.total_gb} GB`;
+        document.getElementById('disk-percent').textContent = `${sys.disk.percent.toFixed(1)}%`;
+        document.getElementById('disk-progress').style.strokeDasharray = `${sys.disk.percent.toFixed(1)}, 100`;
+        document.getElementById('disk-details').textContent = `${sys.disk.used_gb} / ${sys.disk.total_gb} GB`;
+    }
+
+    function updateRunningModels(data) {
+        const models = data.running_models;
+        const tbody = document.getElementById('running-models-tbody');
+        const csrfToken = "{{ csrf_token }}";
+        tbody.innerHTML = '';
+        if (models.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-gray-400">No models are currently running or available on active servers.</td></tr>`;
+            return;
+        }
+        models.forEach(model => {
+            const sizeGb = (model.size / (1024 ** 3)).toFixed(2);
+            const isOllamaModel = model.expires_at && !String(model.expires_at).startsWith('N/A');
+
+            let expiresIn = 'N/A';
+            if (isOllamaModel) {
+                const expiresDate = new Date(model.expires_at);
+                const now = new Date();
+                const diffSeconds = Math.round((expiresDate - now) / 1000);
+                if (diffSeconds > 0) {
+                    const minutes = Math.floor(diffSeconds / 60);
+                    const seconds = diffSeconds % 60;
+                    expiresIn = `${minutes}m ${seconds}s`;
+                }
+            } else if (model.expires_at) {
+                expiresIn = model.expires_at;
+            }
+
+            const placement = model.size_vram > 0 ? '<span class="gpu-badge">GPU</span>' : '<span class="cpu-badge">CPU</span>';
+            const chatUrl = `{{ url_for('admin_playground') }}?model=${encodeURIComponent(model.name)}`;
+            
+            const unloadForm = `
+                <form action="{{ url_for('admin_unload_model_dashboard') }}" method="post" class="inline">
+                    <input type="hidden" name="csrf_token" value="${csrfToken}">
+                    <input type="hidden" name="model_name" value="${model.name}">
+                    <input type="hidden" name="server_name" value="${model.server_name}">
+                    <button type="submit" class="text-red-400 hover:text-red-600">Unload</button>
+                </form>
+            `;
+            const row = `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-current">${model.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${model.server_name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${placement}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${sizeGb > 0 ? (sizeGb + ' GB') : 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${expiresIn}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end gap-4">
+                            <a href="${chatUrl}" class="text-[var(--color-primary-500)] hover:text-[var(--color-primary-700)]">Chat</a>
+                            ${ isOllamaModel ? unloadForm : '' }
+                        </div>
+                    </td>
+                </tr>`;
+            tbody.innerHTML += row;
+        });
+    }
+
+    function updateLoadBalancerStatus(data) {
+        const servers = data.load_balancer_status;
+        const tbody = document.getElementById('load-balancer-tbody');
+        tbody.innerHTML = '';
+        if (servers.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">No backend servers configured.</td></tr>`;
+            return;
+        }
+        servers.forEach(server => {
+            const statusBadge = server.status === 'Online'
+                ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-200 text-green-800"><span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full"></span>Online</span>`
+                : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-200 text-red-800" title="${server.reason || ''}"><span class="w-2 h-2 mr-1.5 bg-red-500 rounded-full"></span>Offline</span>`;
+            const row = `<tr><td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-current">${server.name}</div><div class="text-sm text-gray-400 font-mono">${server.url}</div></td><td class="px-6 py-4 whitespace-nowrap text-sm">${statusBadge}</td><td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-current">${server.request_count.toLocaleString()}</td></tr>`;
+            tbody.innerHTML += row;
+        });
+    }
+
+    function updateRateLimitStatus(data) {
+        const limits = data.queue_status;
+        const tbody = document.getElementById('rate-limit-tbody');
+        tbody.innerHTML = '';
+        if (limits.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">No active rate limits. Either Redis is disconnected or there is no traffic.</td></tr>`;
+            return;
+        }
+        limits.forEach(limit => {
+            const percentage = limit.limit > 0 ? (limit.count / limit.limit) * 100 : 0;
+            const row = `<tr><td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-current">${limit.prefix}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><div>${limit.count} / ${limit.limit} reqs</div><div class="w-full bg-gray-700/50 rounded-full h-1.5 mt-1"><div class="bg-[var(--color-primary-600)] h-1.5 rounded-full" style="width: ${percentage.toFixed(2)}%"></div></div></td><td class="px-6 py-4 whitespace-nowrap text-right text-sm">${limit.ttl_seconds}s</td></tr>`;
+            tbody.innerHTML += row;
+        });
+    }
+
+    async function fetchData() {
+        try {
+            const response = await fetch(systemInfoUrl);
+            if (!response.ok) {
+                console.error("Failed to fetch system info:", response.statusText);
+                return;
+            }
+            const data = await response.json();
+            updateSystemInfo(data);
+            updateRunningModels(data);
+            updateLoadBalancerStatus(data);
+            updateRateLimitStatus(data);
+        } catch (error) {
+            console.error("Error fetching dashboard data:", error);
+        }
+    }
+
+    fetchData();
+    setInterval(fetchData, 5000);
+});
+</script>
+{% endblock %}
