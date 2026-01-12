@@ -1,0 +1,34 @@
+# docker-compose.distributed.yml
+# Override for distributed deployment (backend only, no frontend)
+
+services:
+  # Disable frontend in this deployment
+  frontend:
+    image: alpine:latest
+    entrypoint: ["echo", "Frontend disabled in distributed mode"]
+    profiles:
+      - disabled
+    depends_on: []
+
+  # Configure LiveKit for Tailscale
+  livekit:
+    volumes:
+      - ./livekit-tailscale.yaml:/livekit.yaml:ro
+    command:
+      - |
+        echo "Distributed mode: using Tailscale config"
+        exec /livekit-server --config /livekit.yaml --node-ip $${CAAL_HOST_IP}
+
+  # Ensure agent can reach Ollama on host
+  agent:
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+
+  # nginx - OVERRIDE depends_on to remove frontend dependency
+  nginx:
+    volumes:
+      - ./nginx-distributed.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on: !override
+      livekit:
+        condition: service_healthy

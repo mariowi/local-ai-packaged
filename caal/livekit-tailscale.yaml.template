@@ -1,0 +1,21 @@
+port: 7880
+log_level: info
+keys:
+  devkey: secret
+
+rtc:
+  use_external_ip: false
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+
+# TURN/TLS for remote access (Tailscale or mkcert)
+turn:
+  enabled: true
+  domain: ${HTTPS_DOMAIN}
+  tls_port: 5349
+  cert_file: /etc/livekit/certs/server.crt
+  key_file: /etc/livekit/certs/server.key
+  relay_range_start: 30000
+  relay_range_end: 30100
+  external_tls: true

@@ -1,0 +1,23 @@
+{
+  "agent_name": "Cal",
+  "tts_voice": "am_puck",
+  "prompt": "default",
+  "wake_greetings": [
+    "Hey, what's up?",
+    "Hi there!",
+    "Yeah?",
+    "What can I do for you?",
+    "Hey!",
+    "Yo!",
+    "What's up?"
+  ],
+  "temperature": 0.7,
+  "model": "ministral-3:8b",
+  "num_ctx": 8192,
+  "max_turns": 20,
+  "tool_cache_size": 3,
+  "wake_word_enabled": false,
+  "wake_word_model": "models/hey_cal.onnx",
+  "wake_word_threshold": 0.5,
+  "wake_word_timeout": 3.0
+}

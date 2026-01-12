@@ -1,0 +1,181 @@
+# CAAL Voice Framework - Apple Silicon (M1/M2/M3/M4)
+# ==================================================
+#
+# This compose file is for Apple Silicon Macs. It excludes GPU containers
+# (Speaches, Kokoro) since they require NVIDIA CUDA.
+#
+# Prerequisites:
+#   1. Install mlx-audio for STT/TTS:
+#      pip install mlx-audio
+#
+#   2. Start mlx-audio server (runs on port 8000):
+#      python -m mlx_audio.server --port 8000
+#
+#   3. Install Ollama for LLM (native MPS support):
+#      brew install ollama
+#      ollama pull ministral-3:8b
+#
+# Usage:
+#   docker compose -f docker-compose.apple.yaml up -d
+#   Access: http://localhost:3000
+#
+# With HTTPS (Tailscale):
+#   docker compose -f docker-compose.apple.yaml --profile https up -d
+#
+# See .env.example for configuration options.
+
+services:
+  # ===========================================================================
+  # LiveKit Server - WebRTC Infrastructure
+  # ===========================================================================
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: caal-livekit
+    platform: linux/arm64
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -n "$${HTTPS_DOMAIN}" ]; then
+          echo "HTTPS mode: enabling TURN/TLS for $${HTTPS_DOMAIN}"
+          apk add --no-cache gettext > /dev/null 2>&1
+          envsubst < /etc/livekit.yaml.template > /etc/livekit.yaml
+        else
+          echo "LAN mode: using basic config"
+          cp /etc/livekit-lan.yaml /etc/livekit.yaml
+        fi
+        exec /livekit-server --config /etc/livekit.yaml --node-ip $${CAAL_HOST_IP}
+    ports:
+      - "7880:7880"       # WebSocket
+      - "7881:7881"       # TCP for WebRTC
+      - "7881:7881/udp"   # UDP for WebRTC
+      - "5349:5349"       # TURN/TLS (only used in HTTPS mode)
+      - "30000-30100:30000-30100/udp"  # TURN relay ports
+      - "50000-50100:50000-50100/udp"  # WebRTC media ports
+    volumes:
+      - ./livekit.yaml:/etc/livekit-lan.yaml:ro
+      - ./livekit-tailscale.yaml.template:/etc/livekit.yaml.template:ro
+      - ./certs:/etc/livekit/certs:ro
+    environment:
+      - HTTPS_DOMAIN=${HTTPS_DOMAIN:-}
+      - CAAL_HOST_IP=${CAAL_HOST_IP}
+    networks:
+      - caal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================================================
+  # CAAL Agent - Voice Processing Pipeline
+  # ===========================================================================
+  # Connects to mlx-audio running on host for STT/TTS
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/arm64
+    container_name: caal-agent
+    platform: linux/arm64
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8889:8889"  # Webhook server
+    env_file:
+      - ./.env
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      # Point to mlx-audio (single service for STT + TTS)
+      - SPEACHES_URL=${MLX_AUDIO_URL:-http://host.docker.internal:8001}
+      - KOKORO_URL=${MLX_AUDIO_URL:-http://host.docker.internal:8001}
+      # MLX models and voice - override in .env if needed
+      - WHISPER_MODEL=${WHISPER_MODEL:-mlx-community/whisper-medium-mlx}
+      - TTS_MODEL=${TTS_MODEL:-prince-canuma/Kokoro-82M}
+      # mlx-audio Kokoro uses different voices than kokoro-fastapi
+      - TTS_VOICE=${TTS_VOICE:-af_heart}
+    volumes:
+      - caal-memory:/app/data
+      - caal-config:/app/config  # Runtime config (settings.json, mcp_servers.json)
+      - ./prompt:/app/prompt
+    networks:
+      - caal-network
+    depends_on:
+      livekit:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Frontend - Next.js Web Interface
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      platforms:
+        - linux/arm64
+      args:
+        - NEXT_PUBLIC_LIVEKIT_URL=${HTTPS_DOMAIN:+wss://${HTTPS_DOMAIN}:7443}
+        - NEXT_PUBLIC_PORCUPINE_ACCESS_KEY=${PORCUPINE_ACCESS_KEY:-}
+    container_name: caal-frontend
+    platform: linux/arm64
+    ports:
+      - "3000:3000"
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - NEXT_PUBLIC_LIVEKIT_URL=${HTTPS_DOMAIN:+wss://${HTTPS_DOMAIN}:7443}
+      - WEBHOOK_URL=http://agent:8889
+    networks:
+      - caal-network
+    depends_on:
+      livekit:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # nginx - HTTPS Reverse Proxy (Tailscale certs)
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: caal-nginx
+    platform: linux/arm64
+    ports:
+      - "80:80"
+      - "443:443"
+      - "7443:7443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks:
+      - caal-network
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    profiles:
+      - https
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  caal-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  caal-memory:
+    name: caal-memory
+  caal-config:
+    name: caal-config

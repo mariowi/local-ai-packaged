@@ -1,0 +1,31 @@
+# CAAL Voice Framework - Development Override
+# ============================================
+#
+# Use this file for local development with manual agent/frontend processes.
+#
+# Usage:
+#   docker compose -f docker-compose.yaml -f docker-compose.dev.yml up -d
+#
+# This starts only LiveKit + Speaches. Run agent and frontend manually:
+#   uv run voice_agent.py dev
+#   cd frontend && pnpm dev
+
+services:
+  # Disable agent container (run manually for hot reload)
+  agent:
+    profiles: ["disabled"]
+
+  # Disable frontend container (run manually for hot reload)
+  frontend:
+    profiles: ["disabled"]
+
+  # Override LiveKit for local development
+  livekit:
+    # Use host network for simpler local WebRTC
+    network_mode: host
+    networks: []
+    ports: []
+    command: --dev --bind 0.0.0.0
+    volumes: []
+    environment:
+      - LIVEKIT_LOG_LEVEL=debug
