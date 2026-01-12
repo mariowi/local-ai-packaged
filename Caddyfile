@@ -40,6 +40,26 @@
     reverse_proxy neo4j:7474
 }
 
+# InsightsLM
+{$INSIGHTSLM_HOSTNAME} {
+    reverse_proxy insightslm:3010
+}
+
+# Coqui TTS
+{$COQUI_TTS_HOSTNAME} {
+    reverse_proxy coqui-tts:5002
+}
+
+# Whisper ASR
+{$WHISPER_ASR_HOSTNAME} {
+    reverse_proxy whisper-asr:9002
+}
+
+# Ollama-Proxy
+{$OLLAMA_PROXY_HOSTNAME} {
+    reverse_proxy ollama-proxy:9080
+}
+
 import /etc/caddy/addons/*.conf
 
 # # SearXNG

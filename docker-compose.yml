@@ -14,6 +14,16 @@ volumes:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:
   langfuse_minio_data:
+  whisper_cache:
+  docling_data:
+  caal-memory:
+    name: caal-memory
+  caal-config:
+    name: caal-config
+  speaches-cache:
+    name: caal-speaches-cache
+  kokoro-cache:
+    name: caal-kokoro-cache
 
 x-n8n: &service-n8n
   image: n8nio/n8n:latest
@@ -51,8 +61,44 @@ x-init-ollama: &init-ollama
   entrypoint: /bin/sh
   command:
     - "-c"
-    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
+    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen3:8b-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull ministral-3:8b; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
 
+# ===========================================
+# Docling Base Configuration (YAML Anchor)
+# ===========================================
+x-docling: &service-docling
+  image: ghcr.io/docling-project/docling-serve:main
+  container_name: docling
+  # networks: ['demo']
+  restart: unless-stopped
+  # Run as root to fix bind mount permissions on Windows
+  user: root
+  # Override working directory so referenced images are saved to shared folder
+  working_dir: /shared/docling-scratch
+  expose:
+    - 5001/tcp
+  ports:
+    - 5001:5001
+  environment:
+    - DOCLING_SERVE_ENABLE_UI=true
+    # Store extracted images in shared folder accessible by other services
+    - DOCLING_SERVE_SCRATCH_PATH=/shared/docling-scratch
+    # Keep results after retrieval so other services can access them
+    - DOCLING_SERVE_SINGLE_USE_RESULTS=false
+    # Gradio security: allow writing to /shared directory
+    - GRADIO_ALLOWED_PATHS=/shared
+    - GRADIO_TEMP_DIR=/shared/docling-scratch
+    - DOCLING_SERVE_ENABLE_REMOTE_SERVICES=true
+  volumes:
+    - docling_data:/data
+    - ./shared:/shared
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+    
 services:
   flowise:
     image: flowiseai/flowise
@@ -393,3 +439,281 @@ services:
     image: ollama/ollama:rocm
     depends_on:
      - ollama-gpu-amd
+
+
+  # ===========================================
+  # Docling - Document Processing
+  # ===========================================
+  # OCR and document parsing service
+  # Accessible at http://localhost:5001
+  # Uses profiles: cpu, gpu-nvidia, gpu-amd
+  # Docs: https://github.com/docling-project/docling-serve
+
+  docling-cpu:
+    profiles: ["cpu"]
+    <<: *service-docling
+
+  docling-gpu:
+    profiles: ["gpu-nvidia"]
+    <<: *service-docling
+    image: ghcr.io/docling-project/docling-serve-cu126:main
+    environment:
+      - DOCLING_SERVE_ENABLE_UI=true
+      - DOCLING_SERVE_SCRATCH_PATH=/shared/docling-scratch
+      - DOCLING_SERVE_SINGLE_USE_RESULTS=false
+      - GRADIO_ALLOWED_PATHS=/shared
+      - GRADIO_TEMP_DIR=/shared/docling-scratch
+      - NVIDIA_VISIBLE_DEVICES=all
+      - DOCLING_SERVE_ENABLE_REMOTE_SERVICES=true
+    runtime: nvidia
+
+  docling-gpu-amd:
+    profiles: ["gpu-amd"]
+    <<: *service-docling
+    image: ghcr.io/docling-project/docling-serve-rocm:main
+    environment:
+      - DOCLING_SERVE_ENABLE_UI=true
+      - DOCLING_SERVE_SCRATCH_PATH=/shared/docling-scratch
+      - DOCLING_SERVE_SINGLE_USE_RESULTS=false
+      - GRADIO_ALLOWED_PATHS=/shared
+      - GRADIO_TEMP_DIR=/shared/docling-scratch
+      - ROCR_VISIBLE_DEVICES=0
+      - DOCLING_SERVE_ENABLE_REMOTE_SERVICES=true
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - 44    # video group GID (run: getent group video)
+      - 109   # render group GID (run: getent group render)
+
+  insightslm:
+    build:
+      context: ./insights-lm
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${API_EXTERNAL_URL}
+        VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+    container_name: insightslm
+    ports:
+      - 3010:80
+    restart: unless-stopped
+
+  # ===========================================================================
+  # LiveKit Server - WebRTC Infrastructure
+  # ===========================================================================
+  # Auto-detects mode: if HTTPS_DOMAIN is set, enables TURN/TLS
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: caal-livekit
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -n "$${HTTPS_DOMAIN}" ]; then
+          echo "HTTPS mode: enabling TURN/TLS for $${HTTPS_DOMAIN}"
+          apk add --no-cache gettext > /dev/null 2>&1
+          envsubst < /etc/livekit.yaml.template > /etc/livekit.yaml
+        else
+          echo "LAN mode: using basic config"
+          cp /etc/livekit-lan.yaml /etc/livekit.yaml
+        fi
+        exec /livekit-server --config /etc/livekit.yaml --node-ip $${CAAL_HOST_IP}
+    ports:
+      - "7880:7880"       # WebSocket
+      - "7881:7881"       # TCP for WebRTC
+      - "7881:7881/udp"   # UDP for WebRTC
+      - "5349:5349"       # TURN/TLS (only used in Tailscale mode)
+      - "30000-30100:30000-30100/udp"  # TURN relay ports
+      - "50000-50100:50000-50100/udp"  # WebRTC media ports
+    volumes:
+      - ./caal/livekit.yaml:/etc/livekit-lan.yaml:ro
+      - ./caal/livekit-tailscale.yaml.template:/etc/livekit.yaml.template:ro
+      - ./certs:/etc/livekit/certs:ro
+    environment:
+      - HTTPS_DOMAIN=${HTTPS_DOMAIN:-}
+      - CAAL_HOST_IP=${CAAL_HOST_IP}
+    # networks:
+    #   - caal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2m30s
+
+  # ===========================================================================
+  # CAAL Agent - Voice Processing Pipeline
+  # ===========================================================================
+  agent:
+    build:
+      context: ./caal
+      dockerfile: Dockerfile
+      labels:
+        org.opencontainers.image.source: https://github.com/CoreWorxLab/caal
+        org.opencontainers.image.description: CAAL Voice Assistant Agent
+    container_name: caal-agent
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8889:8889"  # Webhook server for announcements and tool reload
+    env_file:
+      - ./.env
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      - SPEACHES_URL=http://speaches:${SPEACHES_PORT:-7000}
+      - KOKORO_URL=http://kokoro:8880
+    volumes:
+      - caal-memory:/app/data
+      - caal-config:/app/config  # Runtime config (settings.json, mcp_servers.json)
+      - ./caal/prompt:/app/prompt  # Prompt files (custom.md is gitignored)
+    # networks:
+    #   - caal-network
+    depends_on:
+      livekit:
+        condition: service_healthy
+      speaches:
+        condition: service_healthy
+      kokoro:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Speaches - STT (Faster-Whisper)
+  # ===========================================================================
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    container_name: caal-speaches
+    ports:
+      - "${SPEACHES_PORT:-7000}:8000"
+    volumes:
+      - speaches-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    # networks:
+    #   - caal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2m30s
+
+  # ===========================================================================
+  # Kokoro - TTS (remsky/kokoro-fastapi)
+  # ===========================================================================
+  # Using v0.2.4-master for RTX 50 series (Blackwell/sm_120) GPU support
+  # See: https://github.com/remsky/Kokoro-FastAPI/releases/tag/v0.2.4-master
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:v0.2.4-master
+    container_name: caal-kokoro
+    ports:
+      - "${KOKORO_PORT:-8880}:8880"
+    volumes:
+      - kokoro-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    # networks:
+    #   - caal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2m30s
+
+  # ===========================================================================
+  # Frontend - Next.js Web Interface
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./caal/frontend
+      dockerfile: Dockerfile
+      labels:
+        org.opencontainers.image.source: https://github.com/CoreWorxLab/caal
+        org.opencontainers.image.description: CAAL Voice Assistant Frontend
+      args:
+        - NEXT_PUBLIC_LIVEKIT_URL=${HTTPS_DOMAIN:+wss://${HTTPS_DOMAIN}:7443}
+        - NEXT_PUBLIC_PORCUPINE_ACCESS_KEY=${PORCUPINE_ACCESS_KEY:-}
+    container_name: caal-frontend
+    ports:
+      - "2000:3000"
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - NEXT_PUBLIC_LIVEKIT_URL=${HTTPS_DOMAIN:+wss://${HTTPS_DOMAIN}:7443}
+      - WEBHOOK_URL=http://agent:8889
+    # networks:
+    #   - caal-network
+    depends_on:
+      livekit:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # nginx - HTTPS Reverse Proxy (mkcert or Tailscale certs)
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: caal-nginx
+    ports:
+      - "180:80"
+      - "1443:443"
+      - "7443:7443"
+    volumes:
+      - ./caal/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.certs/caal:/etc/nginx/certs:ro
+    # networks:
+    #   - caal-network
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    profiles:
+      - https
+
+  ollama-proxy:
+    build:
+      context: ./ollama-proxy
+      dockerfile: Dockerfile
+    container_name: ollama-proxy
+    ports:
+      - 9080:8080
+    environment:
+    - DATABASE_URL=${OLLAMA_PROXY_DATABASE_URL}
+    - ADMIN_USER=${OLLAMA_PROXY_ADMIN_USER}
+    - ADMIN_PASSWORD=${OLLAMA_PROXY_ADMIN_PASSWORD}
+    - PROXY_PORT=${OLLAMA_PROXY_PROXY_PORT:-8080}
+    - SECRET_KEY=${OLLAMA_PROXY_SECRET_KEY}
+    - LOG_LEVEL=${OLLAMA_PROXY_LOG_LEVEL:-info}
+    volumes:
+      - ./ollama_proxy.db:/home/app/ollama_proxy.db
+      - ./app/static/uploads:/home/app/app/static/uploads
+      - ./.certs/ollama_proxy:/home/app/.ssl:ro
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+# networks:
+#   caal-network:
+#     driver: bridge
+
+
