@@ -50,10 +50,10 @@ def copy_supabase_functions():
     """Copy supabase-functions to functions in supabase/docker/volumes."""
     chk_path = os.path.join("supabase", "docker", "volumes", "functions", "generate-note-title")
     dst_path = os.path.join("supabase", "docker", "volumes", "functions")
-    src_path = os.path.join("supabase-functions")
+    src_path = os.path.join("insights-lm", "supabase-functions")
     if not os.path.isdir(chk_path):
         print("Copying supabase-functions to functions in supabase/docker/volumes...")
-        shutil.copytree(src_path, dst_path)
+        shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
     else:
         print(f"supabase-functions already exists at {dst_path}")
         return
@@ -62,10 +62,24 @@ def add_environment_variables_to_docker_compose():
     """Add Environment Variables to .env file in supabase/docker."""
     copy_path = os.path.join("insights-lm", "supabase-docker-compose.copy.yml")
     compose_path = os.path.join("supabase", "docker", "docker-compose.yml")
-    with open(copy_path, "r") as file:
+
+    with open(copy_path, 'r', encoding='utf-8') as file:
         yml_content = file.read()
-        sed_cmd = ["sed", "-i", f"/VERIFY_JWT: \"\${{FUNCTIONS_VERIFY_JWT}}\"/a {yml_content}", compose_path]
-        subprocess.run(sed_cmd, check=True)
+
+    with open(compose_path, 'r') as f:
+        lines = f.readlines()
+
+    for line in lines:
+        if 'NOTEBOOK_CHAT_URL: "${NOTEBOOK_CHAT_URL}"' in line:
+            print("Environment variables already added to docker-compose.yml")
+            return
+
+    with open(compose_path, 'w') as f:
+        for line in lines:
+            f.write(line)
+            if 'VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"' in line:
+                f.write(yml_content)
+
 
 def stop_existing_containers(profile=None):
     print("Stopping and removing existing containers for the unified project 'localai'...")
