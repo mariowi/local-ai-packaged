@@ -46,6 +46,27 @@ def prepare_supabase_env():
     print("Copying .env in root to .env in supabase/docker...")
     shutil.copyfile(env_example_path, env_path)
 
+def copy_supabase_functions():
+    """Copy supabase-functions to functions in supabase/docker/volumes."""
+    chk_path = os.path.join("supabase", "docker", "volumes", "functions", "generate-note-title")
+    dst_path = os.path.join("supabase", "docker", "volumes", "functions")
+    src_path = os.path.join("supabase-functions")
+    if not os.path.isdir(chk_path):
+        print("Copying supabase-functions to functions in supabase/docker/volumes...")
+        shutil.copytree(src_path, dst_path)
+    else:
+        print(f"supabase-functions already exists at {dst_path}")
+        return
+    
+def add_environment_variables_to_docker_compose():
+    """Add Environment Variables to .env file in supabase/docker."""
+    copy_path = os.path.join("insights-lm", "supabase-docker-compose.copy.yml")
+    compose_path = os.path.join("supabase", "docker", "docker-compose.yml")
+    with open(copy_path, "r") as file:
+        yml_content = file.read()
+        sed_cmd = ["sed", "-i", f"/VERIFY_JWT: \"\${{FUNCTIONS_VERIFY_JWT}}\"/a {yml_content}", compose_path]
+        subprocess.run(sed_cmd, check=True)
+
 def stop_existing_containers(profile=None):
     print("Stopping and removing existing containers for the unified project 'localai'...")
     cmd = ["docker", "compose", "-p", "localai"]
@@ -233,6 +254,10 @@ def main():
     check_and_fix_docker_compose_for_searxng()
 
     stop_existing_containers(args.profile)
+
+    # Prepare Supabase functions and environment variables for insights-lm
+    copy_supabase_functions()
+    add_environment_variables_to_docker_compose()
 
     # Start Supabase first
     start_supabase(args.environment)
